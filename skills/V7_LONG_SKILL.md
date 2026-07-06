@@ -534,6 +534,96 @@ systemctl --user restart openclaw-gateway.service
 V7-T 趋势尾仓 / 二次回踩观察模块是新增辅助规则，必须经过单独回测后，才能作为正式绩效结论使用。
 V7-L 杠杆风控层用于 10x-20x 合约执行时的仓位和保证金换算。杠杆倍数不得改变 V7 入场条件、止损价格和 R 定义；使用高杠杆时必须优先控制账户单笔最大亏损和爆仓价相对止损价的位置。
 
+## 15. V7-P LBank 纸面账户与 Telegram 推送
+
+### 15.1 模块定位
+
+V7-P 是 V7 做多策略的纸面账户监控模块。
+
+用途：
+- 持续测试 V7 做多方向是否能稳定运行
+- 每天生成 LBank 做多策略信号
+- 次日早上 08:00 复盘前一日表现
+- 维护 2000 USDT 纸面账户的 30 日滚动损益
+- 通过 Telegram bot 青铜c 推送信号和复盘
+
+边界：
+- V7-P 只做多
+- V7-P 不做空
+- 做空模块后续单独开发
+- V7-P 的 30 日纸面账户结果不得替代 V7 原始回测结论
+- 如果没有 Telegram token / chat id，不得假装已经推送成功
+
+### 15.2 当前本地实现文件
+
+仓库文件：
+
+`config/lbank_paper.json`
+
+`scripts/lbank_paper_trader.py`
+
+`docs/LBANK_PAPER_WORKFLOW.md`
+
+当前纸面账户结果：
+
+`results/lbank_paper/simulation_30d_summary.json`
+
+### 15.3 当前 30 日纸面账户基线
+
+当前 LBank 现货日线 30 日模拟：
+
+- 区间：2026-06-05 至 2026-07-04
+- 初始资金：2000 USDT
+- 当前权益：2000 USDT
+- 盈亏：0 USDT
+- 收益率：0.00%
+- 交易数：0
+- 当前仓位：空仓
+
+解释：
+- 最近 30 天没有触发 V7-P 做多目标仓位
+- 结果应解释为策略空仓等待，不是亏损，也不是脚本未运行
+
+### 15.4 LBank 数据与资金费率
+
+V7-P 当前使用 LBank 现货日线：
+
+`/v2/kline.do`
+
+合约资金费率预期来自 LBank futures marketData 的 `prePositionFeeRate` 字段。
+
+如果当前环境访问 LBank 合约公开行情返回 403：
+- 报告必须写明资金费率暂不可用
+- 纸面账户暂按 0 资金费率计算
+- 实盘前必须解决合约 API 可访问性、symbol 映射、资金费率结算时间和手续费档位
+
+### 15.5 Telegram 推送纪律
+
+Telegram 使用本地 `.env`：
+
+`TELEGRAM_BOT_TOKEN`
+
+`TELEGRAM_CHAT_ID`
+
+纪律：
+- token 和 chat id 不得写入仓库
+- `.env` 不得提交到 GitHub
+- 缺少 Telegram 配置时，只允许本地打印，不得声称已经发给用户
+- 如旧的青铜c每日内容来自其他 crontab、OpenClaw、服务器或 Telegram 端自动化，必须到原系统停用；不得在无法定位来源时误删其他任务
+
+### 15.6 定时任务建议
+
+建议任务：
+
+- 每日信号：每天收盘后运行 `python3 scripts/lbank_paper_trader.py signal`
+- 前一日复盘：每天 08:00 运行 `python3 scripts/lbank_paper_trader.py review`
+
+如果使用 Codex automation：
+- `lbank-crypto-long-only-daily-signal`
+- `lbank-crypto-paper-account-morning-review`
+
+如果 Telegram 配置未完成，自动任务应保持暂停。
+
 
 ## 加密货币三组策略分工总览
 

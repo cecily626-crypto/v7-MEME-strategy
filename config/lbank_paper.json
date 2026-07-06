@@ -1,0 +1,25 @@
+{
+  "account_name": "bronze-c-paper",
+  "initial_equity_usdt": 2000,
+  "symbols": ["btc_usdt", "eth_usdt", "sol_usdt", "xrp_usdt", "doge_usdt", "link_usdt"],
+  "timeframe": "day1",
+  "lookback_days": 220,
+  "simulation_days": 30,
+  "fast_sma_days": 20,
+  "slow_sma_days": 100,
+  "momentum_days": 45,
+  "volatility_days": 20,
+  "rebalance_frequency_days": 7,
+  "max_positions": 5,
+  "target_annual_volatility": 0.55,
+  "max_symbol_weight": 0.5,
+  "max_gross_exposure": 1.0,
+  "fee_bps": 10,
+  "slippage_bps": 5,
+  "portfolio_drawdown_cut": 0.15,
+  "drawdown_risk_scale": 0.5,
+  "lbank_spot_base_url": "https://api.lbkex.com",
+  "lbank_perp_base_url": "https://lbkperp.lbank.com",
+  "lbank_perp_product_group": "SwapU"
+}
+

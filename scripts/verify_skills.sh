@@ -7,12 +7,18 @@ echo "Checking skill files..."
 
 test -f "$ROOT/skills/V7_LONG_SKILL.md"
 test -f "$ROOT/skills/MEME_BIDIR_SKILL.md"
+test -f "$ROOT/config/lbank_paper.json"
+test -f "$ROOT/scripts/lbank_paper_trader.py"
+test -f "$ROOT/docs/LBANK_PAPER_WORKFLOW.md"
 
 grep -q "Funding < -0.10%" "$ROOT/skills/V7_LONG_SKILL.md"
 grep -q "0.05% <= Funding < 0.10%" "$ROOT/skills/V7_LONG_SKILL.md"
 grep -q -- "-1.0% < 4h OI change_pct < 1.0%" "$ROOT/skills/V7_LONG_SKILL.md"
 grep -q "short_liq > long_liq × 4" "$ROOT/skills/V7_LONG_SKILL.md"
 grep -q "V7_MARKET_SUMMARY" "$ROOT/skills/V7_LONG_SKILL.md"
+grep -q "V7-P LBank 纸面账户" "$ROOT/skills/V7_LONG_SKILL.md"
+grep -q "TELEGRAM_BOT_TOKEN" "$ROOT/skills/V7_LONG_SKILL.md"
+grep -q "TELEGRAM_CHAT_ID" "$ROOT/skills/V7_LONG_SKILL.md"
 
 grep -q "MEME-BIDIR" "$ROOT/skills/MEME_BIDIR_SKILL.md"
 grep -q "做多观察" "$ROOT/skills/MEME_BIDIR_SKILL.md"

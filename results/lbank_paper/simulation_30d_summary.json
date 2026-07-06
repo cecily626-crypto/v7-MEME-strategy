@@ -1,0 +1,14 @@
+{
+  "run_at_utc": "2026-07-06T10:03:04.458111+00:00",
+  "mode": "long_only_lbank_paper",
+  "start_date": "2026-06-05",
+  "end_date": "2026-07-04",
+  "initial_equity_usdt": 2000,
+  "ending_equity_usdt": 2000.0,
+  "pnl_usdt": 0.0,
+  "return_pct": 0.0,
+  "max_drawdown_pct": 0.0,
+  "annualized_volatility_pct": 0.0,
+  "trade_count": 0,
+  "latest_weights": {}
+}

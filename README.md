@@ -17,9 +17,13 @@
 2. skills/MEME_BIDIR_SKILL.md  
    memecoin / 高波动山寨双向观察策略，当前不是正式开仓提醒，默认仓位 0%。
 
+3. scripts/lbank_paper_trader.py  
+   V7 做多方向的 LBank 纸面账户监控脚本，用于每日信号、次日 08:00 复盘和 2000 USDT 模拟账户记录。
+
 ## 重要纪律
 
 - V7 不做空
+- 当前 LBank paper monitor 也只做多，做空模块后续单独开发
 - MEME-BIDIR 当前不自动开仓
 - 数据缺失不得强行给正式开仓建议
 - 资金面不通过不得给非 0% 仓位
