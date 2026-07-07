@@ -1,0 +1,2 @@
+symbol,entry_date,entry_price,exit_date,exit_price,return,open_at_end,liquidated
+xlm_usdt,2026-07-03,0.2115,2026-07-05,0.1997,-0.05579196217494087,True,False

@@ -28,6 +28,12 @@
 - docs/DAILY_SIGNAL_AND_REVIEW.md  
   每日 Telegram 信号和早上 08:00 复盘流程。
 
+- docs/STRATEGY_SPOT6_VOLUME12.md  
+  6币现货 + 放量1.2倍纸账户。
+
+- docs/STRATEGY_QUALITY8_MIXED_LEVERAGE.md  
+  QUALITY8 混合杠杆 + 放量1.5倍纸账户。
+
 ## 重要纪律
 
 - V7 不做空

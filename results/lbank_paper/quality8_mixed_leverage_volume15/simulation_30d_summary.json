@@ -1,0 +1,21 @@
+{
+  "run_at_utc": "2026-07-07T08:10:46.995391+00:00",
+  "strategy_id": "quality8_mixed_leverage_volume15",
+  "display_name": "QUALITY8 \u6df7\u5408\u6760\u6746 + \u653e\u91cf1.5\u500d",
+  "start_date": "2026-06-06",
+  "end_date": "2026-07-05",
+  "initial_equity_usdt": 2000,
+  "ending_equity_usdt": 1860.13,
+  "pnl_usdt": -139.87,
+  "return_pct": -6.99,
+  "max_drawdown_pct": -6.99,
+  "annualized_volatility_pct": 23.96,
+  "trade_count": 1,
+  "win_rate_pct": 0.0,
+  "fees_paid_usdt": 2.22,
+  "funding_paid_usdt": 0.24,
+  "liquidation_count": 0,
+  "latest_weights": {
+    "xlm_usdt": 1.5
+  }
+}
