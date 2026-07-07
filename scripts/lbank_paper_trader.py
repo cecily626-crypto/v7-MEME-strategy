@@ -162,7 +162,8 @@ def run_simulation(cfg):
     equity = cfg["initial_equity_usdt"]
     peak = equity
     weights = {s: 0.0 for s in symbols}
-    fee = (cfg["fee_bps"] + cfg["slippage_bps"]) / 10000
+    fee_key = "maker_fee_bps" if cfg.get("paper_fee_mode") == "maker" else "taker_fee_bps"
+    fee = (cfg.get(fee_key, cfg.get("fee_bps", 0)) + cfg["slippage_bps"]) / 10000
     rows = []
     trades = []
     open_positions = {}
@@ -320,4 +321,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

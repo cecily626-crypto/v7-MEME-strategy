@@ -7,6 +7,7 @@
 - 数据源：LBank 现货日线 `/v2/kline.do`。
 - 账户规模：2000 USDT 纸面账户。
 - 推送渠道：Telegram bot `青铜c`。
+- 手续费：LBank maker 0.02%，taker 0.04%；纸面账户默认按 taker 0.04% 计算，更保守。
 
 ## Telegram 配置
 
@@ -39,4 +40,3 @@ LBank 合约行情文档中的 `marketData` 返回字段包含 `prePositionFeeRa
 3. 纸面账户暂按 0 资金费率计算。
 
 实盘前必须再次确认 LBank 合约 API 可访问性、具体合约 symbol、资金费率结算时间和手续费档位。
-

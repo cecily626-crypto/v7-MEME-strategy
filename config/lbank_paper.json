@@ -14,7 +14,9 @@
   "target_annual_volatility": 0.55,
   "max_symbol_weight": 0.5,
   "max_gross_exposure": 1.0,
-  "fee_bps": 10,
+  "maker_fee_bps": 2,
+  "taker_fee_bps": 4,
+  "paper_fee_mode": "taker",
   "slippage_bps": 5,
   "portfolio_drawdown_cut": 0.15,
   "drawdown_risk_scale": 0.5,
@@ -22,4 +24,3 @@
   "lbank_perp_base_url": "https://lbkperp.lbank.com",
   "lbank_perp_product_group": "SwapU"
 }
-
