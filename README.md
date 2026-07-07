@@ -20,6 +20,14 @@
 3. scripts/lbank_paper_trader.py  
    V7 做多方向的 LBank 纸面账户监控脚本，用于每日信号、次日 08:00 复盘和 2000 USDT 模拟账户记录。
 
+## 快速查阅
+
+- docs/CURRENT_TRADING_STRATEGY.md  
+  当前 LBank V7-P 做多纸面账户策略说明。
+
+- docs/DAILY_SIGNAL_AND_REVIEW.md  
+  每日 Telegram 信号和早上 08:00 复盘流程。
+
 ## 重要纪律
 
 - V7 不做空
