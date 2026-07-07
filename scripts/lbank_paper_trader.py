@@ -71,6 +71,22 @@ def max_drawdown(equity):
 def fetch_lbank_daily(symbol, cfg):
     os.makedirs(DATA_DIR, exist_ok=True)
     cache_path = os.path.join(DATA_DIR, f"{symbol}_day1.csv")
+    def read_cache():
+        if not os.path.exists(cache_path):
+            return []
+        with open(cache_path, "r", encoding="utf-8") as f:
+            return [
+                {
+                    "date": r["date"],
+                    "open": float(r["open"]),
+                    "high": float(r["high"]),
+                    "low": float(r["low"]),
+                    "close": float(r["close"]),
+                    "volume": float(r["volume"]),
+                }
+                for r in csv.DictReader(f)
+            ]
+
     start_ts = int(time.time()) - cfg["lookback_days"] * 86400
     params = urllib.parse.urlencode({
         "symbol": symbol,
@@ -79,7 +95,13 @@ def fetch_lbank_daily(symbol, cfg):
         "time": start_ts,
     })
     url = f"{cfg['lbank_spot_base_url']}/v2/kline.do?{params}"
-    payload = http_json(url)
+    try:
+        payload = http_json(url)
+    except Exception:
+        cached = read_cache()
+        if cached:
+            return cached
+        raise
     rows = []
     for item in payload.get("data", []):
         ts, open_, high, low, close, volume = item[:6]
