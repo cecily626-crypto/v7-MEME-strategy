@@ -29,7 +29,7 @@ class ExpectedRun:
 EXPECTED_RUNS = [
     ExpectedRun("review-all", "每日复盘", 30),
     ExpectedRun("signal-all", "晚间信号", 30),
-    ExpectedRun("mtf-long-notify", "多周期小时观察", 2.5),
+    ExpectedRun("mtf-long-notify", "多周期小时观察", 2.5, requires_telegram=False),
     ExpectedRun("weekly-all", "周复盘", 24 * 8),
 ]
 
@@ -87,14 +87,15 @@ def read_blocks(log_path):
     return blocks
 
 
-def last_success(command, log_dir):
+def last_success(expected, log_dir):
+    command = expected.command
     path = os.path.join(log_dir, f"{command}.log")
     successes = []
     last_block = None
     for block in read_blocks(path):
         last_block = block
         sent = any("Telegram sent successfully." in line for line in block["lines"])
-        if block["status"] == 0 and sent:
+        if block["status"] == 0 and (sent or not expected.requires_telegram):
             successes.append(block)
     return {
         "path": path,
@@ -153,7 +154,7 @@ def build_report(log_dir):
     problems = []
     ok_lines = []
     for expected in EXPECTED_RUNS:
-        info = last_success(expected.command, log_dir)
+        info = last_success(expected, log_dir)
         success = info["last_success"]
         if not success:
             last = info["last_block"]
