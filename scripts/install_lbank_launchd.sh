@@ -27,7 +27,9 @@ mkdir -p "$LOG_DIR"
 {
   echo "===== $(date '+%Y-%m-%d %H:%M:%S %Z') START $COMMAND ====="
   cd "$REPO" || exit 1
-  if [[ "$COMMAND" == "mtf-long-notify" ]]; then
+  if [[ "$COMMAND" == "health-check" ]]; then
+    /usr/bin/python3 scripts/lbank_health_check.py
+  elif [[ "$COMMAND" == "mtf-long-notify" ]]; then
     /usr/bin/python3 scripts/lbank_multitimeframe_backtest.py notify config/strategies/quality8_multitimeframe_atr_long_filtered.json
   else
     /usr/bin/python3 scripts/lbank_paper_trader.py "$COMMAND"
@@ -54,6 +56,7 @@ echo "Installed LBank local schedules:"
 echo "- daily signal: 20:15"
 echo "- morning review: 08:00"
 echo "- multitimeframe long observer: every 60 minutes"
+echo "- health check: every 60 minutes"
 echo "- weekly review: Sunday 08:15"
 echo
 echo "Logs:"
