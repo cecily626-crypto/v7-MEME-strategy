@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.cecily626.lbank.weekly-review</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/ceciliamiao/lbank-strategy-runner/run_lbank_workflow.sh</string>
+    <string>weekly-all</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key>
+    <integer>0</integer>
+    <key>Hour</key>
+    <integer>8</integer>
+    <key>Minute</key>
+    <integer>15</integer>
+  </dict>
+  <key>WorkingDirectory</key>
+  <string>/Users/ceciliamiao/lbank-strategy-runner</string>
+  <key>StandardOutPath</key>
+  <string>/Users/ceciliamiao/lbank-strategy-runner/launchd.weekly-review.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/ceciliamiao/lbank-strategy-runner/launchd.weekly-review.err.log</string>
+</dict>
+</plist>
