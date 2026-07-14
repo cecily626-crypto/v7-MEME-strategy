@@ -94,7 +94,7 @@ def last_success(expected, log_dir):
     last_block = None
     for block in read_blocks(path):
         last_block = block
-        sent = any("Telegram sent successfully." in line for line in block["lines"])
+        sent = any("Telegram sent successfully" in line for line in block["lines"])
         if block["status"] == 0 and (sent or not expected.requires_telegram):
             successes.append(block)
     return {
@@ -122,12 +122,24 @@ def send_telegram(text):
         return False
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     body = urllib.parse.urlencode({"chat_id": chat_id, "text": text}).encode("utf-8")
-    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/x-www-form-urlencoded"})
-    with urllib.request.urlopen(req, timeout=20) as r:
-        payload = json.loads(r.read().decode("utf-8"))
-    ok = bool(payload.get("ok"))
-    print("Telegram sent successfully." if ok else f"Telegram send failed: {payload}")
-    return ok
+    last_error = None
+    for attempt in range(1, 4):
+        try:
+            req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/x-www-form-urlencoded"})
+            with urllib.request.urlopen(req, timeout=30) as r:
+                payload = json.loads(r.read().decode("utf-8"))
+            ok = bool(payload.get("ok"))
+            if ok:
+                print(f"Telegram sent successfully on attempt {attempt}.")
+                return True
+            last_error = payload
+            print(f"Telegram send failed on attempt {attempt}: {payload}")
+        except Exception as exc:
+            last_error = exc
+            print(f"Telegram send error on attempt {attempt}: {exc}")
+        time.sleep(2 * attempt)
+    print(f"Telegram delivery failed after retries: {last_error}")
+    return False
 
 
 def load_state():
@@ -156,12 +168,18 @@ def build_report(log_dir):
     for expected in EXPECTED_RUNS:
         info = last_success(expected, log_dir)
         success = info["last_success"]
+        last = info["last_block"]
         if not success:
-            last = info["last_block"]
             detail = "从未成功发送"
             if last:
                 detail = f"最近一次退出码 {last['status']}"
             problems.append(f"- {expected.display_name}: {detail}; 日志 {info['path']}")
+            continue
+        if last and last["status"] != 0 and last["end_ts"] >= success["end_ts"]:
+            problems.append(
+                f"- {expected.display_name}: 最近一次运行失败，退出码 {last['status']}；"
+                f"最近成功在 {success['end_ts'].strftime('%Y-%m-%d %H:%M:%S')}"
+            )
             continue
         age_seconds = (now - success["end_ts"]).total_seconds()
         max_age_seconds = expected.max_age_hours * 3600

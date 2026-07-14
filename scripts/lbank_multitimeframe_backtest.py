@@ -691,12 +691,24 @@ def send_telegram(text):
         return False
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     body = urllib.parse.urlencode({"chat_id": chat_id, "text": text}).encode("utf-8")
-    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/x-www-form-urlencoded"})
-    with urllib.request.urlopen(req, timeout=20) as r:
-        payload = json.loads(r.read().decode("utf-8"))
-    ok = bool(payload.get("ok"))
-    print("Telegram sent successfully." if ok else f"Telegram send failed: {payload}")
-    return ok
+    last_error = None
+    for attempt in range(1, 4):
+        try:
+            req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/x-www-form-urlencoded"})
+            with urllib.request.urlopen(req, timeout=30) as r:
+                payload = json.loads(r.read().decode("utf-8"))
+            ok = bool(payload.get("ok"))
+            if ok:
+                print(f"Telegram sent successfully on attempt {attempt}.")
+                return True
+            last_error = payload
+            print(f"Telegram send failed on attempt {attempt}: {payload}")
+        except Exception as exc:
+            last_error = exc
+            print(f"Telegram send error on attempt {attempt}: {exc}")
+        time.sleep(2 * attempt)
+    print(f"Telegram delivery failed after retries: {last_error}")
+    return False
 
 
 def trade_key(trade):

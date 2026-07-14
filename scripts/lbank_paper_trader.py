@@ -15,6 +15,7 @@ DEFAULT_CONFIG_PATH = os.path.join(ROOT, "config", "lbank_paper.json")
 STRATEGY_CONFIG_DIR = os.path.join(ROOT, "config", "strategies")
 RESULTS_ROOT = os.path.join(ROOT, "results", "lbank_paper")
 DATA_DIR = os.path.join(ROOT, "data", "lbank")
+NOTIFY_STATE_DIR = os.path.join(ROOT, "results", "lbank_paper_notify")
 
 
 def load_json(path):
@@ -237,12 +238,19 @@ def run_simulation(cfg):
                 if old <= 1e-12 and new > 1e-12:
                     entry_ref[s] = prev_price
                     liquidation_price[s] = prev_price * (1 - 1 / leverage_for(s, cfg))
-                    open_positions[s] = {"symbol": s, "entry_date": dates[i - 1], "entry_price": prev_price}
+                    open_positions[s] = {
+                        "symbol": s,
+                        "entry_date": dates[i - 1],
+                        "entry_price": prev_price,
+                        "entry_equity": equity,
+                        "entry_nominal_weight": new,
+                    }
                 elif old > 1e-12 and new <= 1e-12 and s in open_positions:
                     trade = open_positions.pop(s)
                     trade["exit_date"] = dates[i - 1]
                     trade["exit_price"] = prev_price
                     trade["return"] = trade["exit_price"] / trade["entry_price"] - 1
+                    trade["pnl_usdt"] = trade.get("entry_equity", equity) * trade.get("entry_nominal_weight", old) * trade["return"]
                     trades.append(trade)
                     entry_ref.pop(s, None)
                     liquidation_price.pop(s, None)
@@ -293,6 +301,7 @@ def run_simulation(cfg):
                 trade["exit_date"] = day
                 trade["exit_price"] = by_symbol[s][day]["low"]
                 trade["return"] = -1 / leverage_for(s, cfg)
+                trade["pnl_usdt"] = -equity * trade.get("entry_nominal_weight", weights.get(s, 0.0)) / leverage_for(s, cfg)
                 trade["liquidated"] = True
                 trades.append(trade)
 
@@ -309,6 +318,7 @@ def run_simulation(cfg):
         trade["exit_date"] = dates[-1]
         trade["exit_price"] = by_symbol[s][dates[-1]]["close"]
         trade["return"] = trade["exit_price"] / trade["entry_price"] - 1
+        trade["pnl_usdt"] = trade.get("entry_equity", equity) * trade.get("entry_nominal_weight", weights.get(s, 0.0)) * trade["return"]
         trade["open_at_end"] = True
         trades.append(trade)
 
@@ -341,17 +351,23 @@ def run_simulation(cfg):
         writer = csv.DictWriter(f, fieldnames=["date", "equity", "daily_return", "gross_exposure", "drawdown"])
         writer.writeheader()
         writer.writerows(rows)
+    trade_fields = [
+        "symbol", "entry_date", "entry_price", "entry_nominal_weight", "exit_date",
+        "exit_price", "return", "pnl_usdt", "open_at_end", "liquidated",
+    ]
     with open(os.path.join(out_dir, "simulation_30d_trades.csv"), "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["symbol", "entry_date", "entry_price", "exit_date", "exit_price", "return", "open_at_end", "liquidated"])
+        writer = csv.DictWriter(f, fieldnames=trade_fields)
         writer.writeheader()
         for trade in trades:
             writer.writerow({
                 "symbol": trade["symbol"],
                 "entry_date": trade["entry_date"],
                 "entry_price": trade["entry_price"],
+                "entry_nominal_weight": trade.get("entry_nominal_weight", ""),
                 "exit_date": trade["exit_date"],
                 "exit_price": trade["exit_price"],
                 "return": trade["return"],
+                "pnl_usdt": trade.get("pnl_usdt", ""),
                 "open_at_end": trade.get("open_at_end", False),
                 "liquidated": trade.get("liquidated", False),
             })
@@ -389,6 +405,99 @@ def target_actions(previous, current):
             verb = "减仓"
         actions.append((verb, s, old, new))
     return actions
+
+
+def parse_bool(value):
+    return str(value).lower() in {"true", "1", "yes"}
+
+
+def load_trades(cfg):
+    path = os.path.join(result_dir(cfg), "simulation_30d_trades.csv")
+    if not os.path.exists(path):
+        return []
+    with open(path, "r", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+
+def entry_key(trade):
+    return f"{trade.get('symbol')}|{trade.get('entry_date')}|{trade.get('entry_price')}"
+
+
+def exit_key(trade):
+    return f"{entry_key(trade)}|{trade.get('exit_date')}|{trade.get('exit_price')}"
+
+
+def holding_days(trade):
+    try:
+        entry = datetime.strptime(trade["entry_date"], "%Y-%m-%d")
+        exit_ = datetime.strptime(trade["exit_date"], "%Y-%m-%d")
+        return max((exit_ - entry).days, 0)
+    except Exception:
+        return None
+
+
+def format_entry_line(trade):
+    weight = float(trade.get("entry_nominal_weight") or 0)
+    return (
+        f"- {trade['symbol']}: 入场 {float(trade['entry_price']):.8g} / "
+        f"目标名义仓位 {weight * 100:.2f}%"
+    )
+
+
+def format_exit_line(trade):
+    pnl = float(trade.get("pnl_usdt") or 0)
+    ret = float(trade.get("return") or 0) * 100
+    days = holding_days(trade)
+    duration = f"{days}天" if days is not None else "未知"
+    reason = "爆仓" if parse_bool(trade.get("liquidated")) else "信号退出/窗口结算"
+    if parse_bool(trade.get("open_at_end")):
+        reason = "窗口末持仓估值"
+    return (
+        f"- {trade['symbol']}: 入场 {float(trade['entry_price']):.8g} / "
+        f"离场 {float(trade['exit_price']):.8g} / "
+        f"盈亏 {pnl:+.2f} USDT ({ret:+.2f}%) / "
+        f"持仓 {duration} / 原因 {reason}"
+    )
+
+
+def notify_state_path(cfg):
+    os.makedirs(NOTIFY_STATE_DIR, exist_ok=True)
+    return os.path.join(NOTIFY_STATE_DIR, f"{strategy_id(cfg)}.json")
+
+
+def trade_notifications(cfg):
+    trades = load_trades(cfg)
+    path = notify_state_path(cfg)
+    if os.path.exists(path):
+        state = load_json(path)
+        seeded = True
+    else:
+        state = {"notified_entries": [], "notified_exits": []}
+        seeded = False
+
+    seen_entries = set(state.get("notified_entries", []))
+    seen_exits = set(state.get("notified_exits", []))
+    new_entries = [t for t in trades if entry_key(t) not in seen_entries]
+    new_exits = [
+        t for t in trades
+        if exit_key(t) not in seen_exits and not parse_bool(t.get("open_at_end"))
+    ]
+
+    if not seeded:
+        state = {
+            "seeded_at_utc": datetime.now(timezone.utc).isoformat(),
+            "notified_entries": sorted({entry_key(t) for t in trades}),
+            "notified_exits": sorted({exit_key(t) for t in trades if not parse_bool(t.get("open_at_end"))}),
+        }
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=2)
+        return [], [], True
+
+    state["notified_entries"] = sorted(seen_entries | {entry_key(t) for t in new_entries})
+    state["notified_exits"] = sorted(seen_exits | {exit_key(t) for t in new_exits})
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=2)
+    return new_entries, new_exits, False
 
 
 def format_signal(cfg):
@@ -443,9 +552,11 @@ def leverage_summary(cfg):
 
 def format_review(cfg, weekly=False):
     summary = run_simulation(cfg)
+    new_entries, new_exits, seeded_notify_state = trade_notifications(cfg)
     title = "周复盘" if weekly else "日复盘"
     lines = [
         f"LBank {title}: {summary['display_name']}",
+        "30日纸账户模拟结果:",
         f"区间: {summary['start_date']} 至 {summary['end_date']}",
         f"初始: {summary['initial_equity_usdt']:.2f} USDT",
         f"当前: {summary['ending_equity_usdt']:.2f} USDT",
@@ -459,12 +570,31 @@ def format_review(cfg, weekly=False):
         lines.append(f"资金费率估算: {summary['funding_paid_usdt']:.2f} USDT")
     if summary["liquidation_count"]:
         lines.append(f"爆仓事件: {summary['liquidation_count']}")
+    lines.append("")
+    lines.append("新增开仓:")
+    if seeded_notify_state:
+        lines.append("- 已初始化历史成交通知状态；后续只推新增。")
+    elif new_entries:
+        for trade in new_entries[-20:]:
+            lines.append(format_entry_line(trade))
+    else:
+        lines.append("- 无")
+    lines.append("新增平仓:")
+    if seeded_notify_state:
+        lines.append("- 已初始化历史成交通知状态；后续只推新增。")
+    elif new_exits:
+        for trade in new_exits[-20:]:
+            lines.append(format_exit_line(trade))
+    else:
+        lines.append("- 无")
+    lines.append("")
+    lines.append("最新信号目标名义仓位:")
+    lines.append("说明: 这是下一次执行参考目标，不代表30日模拟里已经成交持仓。")
     if summary["latest_weights"]:
-        lines.append("当前目标名义仓位:")
         for symbol, weight in summary["latest_weights"].items():
             lines.append(f"- {symbol}: {weight * 100:.2f}%")
     else:
-        lines.append("当前目标名义仓位: 空仓")
+        lines.append("- 空仓")
     return "\n".join(lines)
 
 
@@ -478,20 +608,39 @@ def send_telegram(text):
         return False
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     body = urllib.parse.urlencode({"chat_id": chat_id, "text": text}).encode("utf-8")
-    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/x-www-form-urlencoded"})
-    with urllib.request.urlopen(req, timeout=20) as r:
-        payload = json.loads(r.read().decode("utf-8"))
-    return bool(payload.get("ok"))
+    last_error = None
+    for attempt in range(1, 4):
+        try:
+            req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/x-www-form-urlencoded"})
+            with urllib.request.urlopen(req, timeout=30) as r:
+                payload = json.loads(r.read().decode("utf-8"))
+            ok = bool(payload.get("ok"))
+            if ok:
+                print(f"Telegram sent successfully on attempt {attempt}.")
+                return True
+            last_error = payload
+            print(f"Telegram send failed on attempt {attempt}: {payload}")
+        except Exception as exc:
+            last_error = exc
+            print(f"Telegram send error on attempt {attempt}: {exc}")
+        time.sleep(2 * attempt)
+    print(f"Telegram delivery failed after retries: {last_error}")
+    return False
 
 
 def strategy_configs():
     if not os.path.isdir(STRATEGY_CONFIG_DIR):
         return [DEFAULT_CONFIG_PATH]
-    return [
-        os.path.join(STRATEGY_CONFIG_DIR, name)
-        for name in sorted(os.listdir(STRATEGY_CONFIG_DIR))
-        if name.endswith(".json")
-    ]
+    paths = []
+    required_keys = {"timeframe", "fast_sma_days", "slow_sma_days", "momentum_days"}
+    for name in sorted(os.listdir(STRATEGY_CONFIG_DIR)):
+        if not name.endswith(".json"):
+            continue
+        path = os.path.join(STRATEGY_CONFIG_DIR, name)
+        cfg = load_json(path)
+        if required_keys.issubset(cfg):
+            paths.append(path)
+    return paths
 
 
 def load_config_from_args(args):
@@ -519,7 +668,8 @@ def run_all(command):
             messages.append(json.dumps(run_simulation(cfg), indent=2))
     text = "\n\n---\n\n".join(messages)
     if command in {"signal-all", "review-all", "weekly-all"}:
-        send_telegram(text)
+        if not send_telegram(text):
+            raise SystemExit("Telegram delivery failed.")
     else:
         print(text)
 
@@ -533,15 +683,17 @@ def main():
     if command == "simulate":
         print(json.dumps(run_simulation(cfg), indent=2))
     elif command == "signal":
-        send_telegram(format_signal(cfg))
+        if not send_telegram(format_signal(cfg)):
+            raise SystemExit("Telegram delivery failed.")
     elif command == "review":
-        send_telegram(format_review(cfg))
+        if not send_telegram(format_review(cfg)):
+            raise SystemExit("Telegram delivery failed.")
     elif command == "weekly":
-        send_telegram(format_review(cfg, weekly=True))
+        if not send_telegram(format_review(cfg, weekly=True)):
+            raise SystemExit("Telegram delivery failed.")
     else:
         raise SystemExit("usage: lbank_paper_trader.py [simulate|signal|review|weekly|simulate-all|signal-all|review-all|weekly-all] [strategy_id|config_path]")
 
 
 if __name__ == "__main__":
     main()
-
