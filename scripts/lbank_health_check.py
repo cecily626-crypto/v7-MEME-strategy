@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 import urllib.parse
@@ -29,7 +30,7 @@ class ExpectedRun:
 EXPECTED_RUNS = [
     ExpectedRun("review-all", "每日复盘", 30),
     ExpectedRun("signal-all", "晚间信号", 30),
-    ExpectedRun("mtf-long-notify", "多周期小时观察", 2.5, requires_telegram=False),
+    ExpectedRun("mtf-long-notify", "多周期小时观察", 4.5, requires_telegram=False),
     ExpectedRun("weekly-all", "周复盘", 24 * 8),
 ]
 
@@ -57,9 +58,9 @@ def parse_log_time(value):
     return dt.astimezone()
 
 
-def read_blocks(log_path):
+def read_log_state(log_path):
     if not os.path.exists(log_path):
-        return []
+        return [], None
     blocks = []
     current = None
     with open(log_path, "r", encoding="utf-8", errors="replace") as f:
@@ -84,7 +85,11 @@ def read_blocks(log_path):
                     current = None
                 else:
                     current["lines"].append(line)
-    return blocks
+    return blocks, current
+
+
+def read_blocks(log_path):
+    return read_log_state(log_path)[0]
 
 
 def last_success(expected, log_dir):
@@ -92,7 +97,8 @@ def last_success(expected, log_dir):
     path = os.path.join(log_dir, f"{command}.log")
     successes = []
     last_block = None
-    for block in read_blocks(path):
+    blocks, current = read_log_state(path)
+    for block in blocks:
         last_block = block
         sent = any("Telegram sent successfully" in line for line in block["lines"])
         if block["status"] == 0 and (sent or not expected.requires_telegram):
@@ -101,6 +107,7 @@ def last_success(expected, log_dir):
         "path": path,
         "last_block": last_block,
         "last_success": successes[-1] if successes else None,
+        "in_progress": current,
     }
 
 
@@ -138,7 +145,34 @@ def send_telegram(text):
             last_error = exc
             print(f"Telegram send error on attempt {attempt}: {exc}")
         time.sleep(2 * attempt)
-    print(f"Telegram delivery failed after retries: {last_error}")
+    print(f"Telegram urllib delivery failed after retries: {last_error}")
+    try:
+        result = subprocess.run(
+            [
+                "/usr/bin/curl",
+                "-sS",
+                "--fail",
+                "--retry", "5",
+                "--retry-delay", "2",
+                "--connect-timeout", "20",
+                "--max-time", "60",
+                "-X", "POST",
+                "-d", f"chat_id={chat_id}",
+                "--data-urlencode", f"text={text}",
+                url,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=90,
+        )
+        if result.returncode == 0:
+            payload = json.loads(result.stdout)
+            ok = bool(payload.get("ok"))
+            print("Telegram sent successfully via curl fallback." if ok else f"Telegram curl send failed: {payload}")
+            return ok
+        print(f"Telegram curl error: {result.stderr.strip() or result.stdout.strip()}")
+    except Exception as exc:
+        print(f"Telegram curl fallback exception: {exc}")
     return False
 
 
@@ -169,6 +203,17 @@ def build_report(log_dir):
         info = last_success(expected, log_dir)
         success = info["last_success"]
         last = info["last_block"]
+        in_progress = info["in_progress"]
+        if in_progress:
+            running_seconds = (now - in_progress["start_ts"]).total_seconds()
+            max_running_seconds = max(expected.max_age_hours, 4) * 3600
+            if running_seconds <= max_running_seconds:
+                ok_lines.append(f"- {expected.display_name}: 正在运行，已运行 {format_age(running_seconds)}")
+                continue
+            problems.append(
+                f"- {expected.display_name}: 任务已运行 {format_age(running_seconds)} 仍未结束；日志 {info['path']}"
+            )
+            continue
         if not success:
             detail = "从未成功发送"
             if last:

@@ -3,6 +3,7 @@ import csv
 import json
 import math
 import os
+import subprocess
 import sys
 import time
 import urllib.parse
@@ -707,7 +708,34 @@ def send_telegram(text):
             last_error = exc
             print(f"Telegram send error on attempt {attempt}: {exc}")
         time.sleep(2 * attempt)
-    print(f"Telegram delivery failed after retries: {last_error}")
+    print(f"Telegram urllib delivery failed after retries: {last_error}")
+    try:
+        result = subprocess.run(
+            [
+                "/usr/bin/curl",
+                "-sS",
+                "--fail",
+                "--retry", "5",
+                "--retry-delay", "2",
+                "--connect-timeout", "20",
+                "--max-time", "60",
+                "-X", "POST",
+                "-d", f"chat_id={chat_id}",
+                "--data-urlencode", f"text={text}",
+                url,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=90,
+        )
+        if result.returncode == 0:
+            payload = json.loads(result.stdout)
+            ok = bool(payload.get("ok"))
+            print("Telegram sent successfully via curl fallback." if ok else f"Telegram curl send failed: {payload}")
+            return ok
+        print(f"Telegram curl error: {result.stderr.strip() or result.stdout.strip()}")
+    except Exception as exc:
+        print(f"Telegram curl fallback exception: {exc}")
     return False
 
 
